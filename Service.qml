@@ -60,6 +60,8 @@ Item {
   readonly property string _artCacheDir: (Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")) + "/omarchy/vinicgobbi.media"
 
   readonly property string _artFetchScript: [
+    // Yours alone, like everything else this plugin keeps.
+    "umask 077",
     "dir=$(dirname -- \"$2\")",
     "mkdir -p -- \"$dir\" || exit 1",
     "tmp=\"$2.tmp\"",
@@ -170,7 +172,7 @@ Item {
   function initArtCache() {
     // Sweep anything left behind by a crashed previous session before this
     // one starts writing to the same cache directory.
-    artStartupCleanupProcess.command = ["sh", "-c", "rm -rf -- \"$1\"; mkdir -p -- \"$1\"", "_", root._artCacheDir]
+    artStartupCleanupProcess.command = ["sh", "-c", "umask 077; rm -rf -- \"$1\"; mkdir -p -- \"$1\"", "_", root._artCacheDir]
     artStartupCleanupProcess.running = true
     root.refreshArt()
   }
