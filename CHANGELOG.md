@@ -1,3 +1,10 @@
+## v0.2.1 (2026-11-03)
+
+### Fix
+
+- **seguranca**: capas em cache ficam privadas
+- **seguranca**: capa não acessa a rede local por DNS
+
 ## v0.2.0 (2026-10-04)
 
 ### Feat
