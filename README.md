@@ -75,6 +75,11 @@ slider. The gear in the corner opens the advanced options.
   player's sound there, like pavucontrol does. Unplugged ports (HDMI with no
   monitor) are hidden. Shown only with more than one output. Uses `pactl`
   (`libpulse`) and `jq`.
+
+  On many laptops, plugging in headphones switches the sound card to a mode
+  without the speakers, so *Speaker* would vanish. It's still listed; picking
+  it switches the card back, which moves **all** sound there, not just this
+  player. Re-plugging the headphones may switch it again.
 - **Copy song:** click the song title to copy "Artist – Title" (or the
   track's link, when the player gives one) to the clipboard. Uses `wl-copy`.
 

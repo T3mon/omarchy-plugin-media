@@ -212,8 +212,14 @@ BarWidget {
   // (pactl's sink-input index is the stream's object.serial). PipeWire also
   // lists sinks whose port is unplugged (HDMI with no monitor), so pactl is
   // asked which ones are "not available" each time the popup opens.
+  //
+  // Some outputs aren't sinks at all right now: on many laptops plugging in
+  // headphones switches the card to a profile without the speakers. Those
+  // are offered too ("cardOutputs"); picking one switches the card's
+  // profile, which moves all sound, not just this player.
   property bool outputsOpen: false
   property var unavailableSinks: []
+  property var cardOutputs: [] // [{ card, label, profile }]
 
   readonly property var outputSinks: {
     var nodes = Pipewire.nodes ? Pipewire.nodes.values : []
@@ -222,7 +228,8 @@ BarWidget {
       return n && n.isSink && !n.isStream && n.audio && hidden.indexOf(String(n.name)) === -1
     })
   }
-  readonly property bool outputSwitchable: usesStreamVolume && outputSinks.length > 1
+  readonly property bool outputSwitchable: usesStreamVolume
+    && outputSinks.length + cardOutputs.length > 1
 
   PwNodeLinkTracker { id: streamLinks; node: root.playerStream }
   readonly property var currentSink: {
@@ -248,16 +255,44 @@ BarWidget {
     moveProcess.running = true
   }
 
+  function switchCardProfile(out) {
+    if (!out || profileProcess.running) return
+    profileProcess.command = ["pactl", "set-card-profile", String(out.card), String(out.profile)]
+    profileProcess.running = true
+  }
+
   Process {
     id: sinkAvailability
-    command: ["bash", "-c", "pactl -f json list sinks 2>/dev/null | jq -r '.[] | . as $s | "
-      + "select(any(.ports[]?; .name == $s.active_port and .availability == \"not available\")) | .name'"]
+    // Prints { hidden: [unplugged sink names], extra: [{ card, label, profile }] }:
+    // output ports that are plugged in (or can't tell) but not part of their
+    // card's active profile, each with the first available profile that has it.
+    command: ["bash", "-c", [
+      "jq -cn --argjson s \"$(pactl -f json list sinks 2>/dev/null || echo '[]')\" \\",
+      "  --argjson c \"$(pactl -f json list cards 2>/dev/null || echo '[]')\" '{",
+      "  hidden: [$s[] | . as $x | select(any(.ports[]?; .name == $x.active_port",
+      "    and .availability == \"not available\")) | .name],",
+      "  extra: [$c[] | .name as $card | .active_profile as $ap | .profiles as $pf",
+      "    | (.ports // {}) | to_entries[]",
+      "    | select((.key | startswith(\"[Out]\")) and .value.availability != \"not available\"",
+      "      and ((.value.profiles | index($ap)) | not))",
+      "    | { card: $card, label: .value.description,",
+      "        profile: ([.value.profiles[] | select($pf[.].available)] | .[0]) }",
+      "    | select(.profile != null)]",
+      "}'"
+    ].join("\n")]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.unavailableSinks = text.split("\n").filter(function(x) { return x !== "" })
+      onStreamFinished: {
+        var out = { hidden: [], extra: [] }
+        try { out = JSON.parse(text) } catch (e) {}
+        root.unavailableSinks = out.hidden || []
+        root.cardOutputs = out.extra || []
+      }
     }
   }
   Process { id: moveProcess }
+  // The new profile's sinks show up a moment after the switch.
+  Process { id: profileProcess; onExited: root.refreshSinkAvailability() }
   Component.onCompleted: refreshSinkAvailability()
 
   // ── Copy song ───────────────────────────────────────────────────────────
@@ -1201,6 +1236,20 @@ BarWidget {
               selected: modelData === root.currentSink
               tooltipText: String(modelData.description || modelData.name || "")
               onClicked: { root.moveToSink(modelData); root.outputsOpen = false }
+            }
+          }
+
+          Repeater {
+            model: outputs.visible ? root.cardOutputs : []
+
+            Button {
+              required property var modelData
+              text: String(modelData.label || "Output")
+              foreground: root.bar.foreground
+              horizontalPadding: Style.spacing.controlPaddingX
+              verticalPadding: Style.spacing.controlPaddingY
+              tooltipText: "Switches the sound card, so all sound moves here"
+              onClicked: { root.switchCardProfile(modelData); root.outputsOpen = false }
             }
           }
         }

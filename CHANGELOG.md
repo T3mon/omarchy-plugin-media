@@ -1,3 +1,10 @@
+## Unreleased
+
+### Feat
+
+- output picker also lists outputs on another sound card profile (Speaker
+  while headphones are plugged in); picking one switches the card's profile
+
 ## v0.3.0 (2026-11-12)
 
 ### Feat
