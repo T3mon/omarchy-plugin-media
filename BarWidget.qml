@@ -200,10 +200,29 @@ BarWidget {
 
   // Output device. Moves only this player's stream to another sink, the way
   // pavucontrol does (pactl's sink-input index is the stream's object.serial).
+  // Sinks whose active port is unplugged (HDMI/DisplayPort with no monitor,
+  // mostly) are hidden. PipeWire still lists them, so ask pactl which ones
+  // are "not available", each time the popup opens.
+  property var unavailableSinks: []
   readonly property var outputSinks: {
     var nodes = Pipewire.nodes ? Pipewire.nodes.values : []
-    return nodes.filter(function(n) { return n && n.isSink && !n.isStream && n.audio })
+    var hidden = unavailableSinks
+    return nodes.filter(function(n) {
+      return n && n.isSink && !n.isStream && n.audio && hidden.indexOf(String(n.name)) === -1
+    })
   }
+  Process {
+    id: sinkAvailability
+    command: ["bash", "-c", "pactl -f json list sinks 2>/dev/null | jq -r '.[] | . as $s | "
+      + "select(any(.ports[]?; .name == $s.active_port and .availability == \"not available\")) | .name'"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.unavailableSinks = text.split("\n").filter(function(x) { return x !== "" })
+    }
+  }
+  function refreshSinkAvailability() { if (!sinkAvailability.running) sinkAvailability.running = true }
+  Component.onCompleted: refreshSinkAvailability()
+  property bool outputsOpen: false
   PwNodeLinkTracker { id: streamLinks; node: root.playerStream }
   readonly property var currentSink: {
     var groups = streamLinks.linkGroups || []
@@ -453,8 +472,8 @@ BarWidget {
     onTriggered: root.activePlayer.positionChanged()
   }
   onPopupOpenChanged: {
-    if (!popupOpen) settingsOpen = false
-    else refreshSpotifyWebWindow()
+    if (!popupOpen) { settingsOpen = false; outputsOpen = false }
+    else { refreshSpotifyWebWindow(); refreshSinkAvailability() }
   }
 
   readonly property bool shown: hasMedia && (!prefs.hideWhenPaused || (activePlayer !== null && activePlayer.isPlaying))
@@ -1118,11 +1137,39 @@ BarWidget {
           }
         }
 
+        // Current output, with an arrow that opens the list of outputs.
+        Item {
+          width: parent.width
+          height: outputLabel.implicitHeight + Style.space(4)
+          visible: root.outputSwitchable
+
+          Text {
+            id: outputLabel
+            textFormat: Text.PlainText
+            anchors.verticalCenter: parent.verticalCenter
+            width: parent.width
+            text: "󰓃  " + (root.currentSink ? root.sinkLabel(root.currentSink) : "Output")
+              + "  " + (root.outputsOpen ? "󰅃" : "󰅀")
+            color: outputHit.containsMouse ? Color.accent : Qt.darker(root.bar.foreground, 1.3)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+            elide: Text.ElideRight
+          }
+
+          MouseArea {
+            id: outputHit
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.outputsOpen = !root.outputsOpen
+          }
+        }
+
         Flow {
           id: outputs
           width: parent.width
           spacing: Style.space(4)
-          visible: root.outputSwitchable
+          visible: root.outputSwitchable && root.outputsOpen
 
           Repeater {
             model: outputs.visible ? root.outputSinks : []
@@ -1135,7 +1182,7 @@ BarWidget {
               verticalPadding: Style.spacing.controlPaddingY
               selected: modelData === root.currentSink
               tooltipText: String(modelData.description || modelData.name || "")
-              onClicked: root.moveToSink(modelData)
+              onClicked: { root.moveToSink(modelData); root.outputsOpen = false }
             }
           }
         }
