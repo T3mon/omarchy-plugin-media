@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Services.Mpris
+import Quickshell.Services.Pipewire
 import qs.Ui
 import qs.Commons
 import "MediaModel.js" as MediaModel
@@ -152,10 +153,41 @@ BarWidget {
     p.positionChanged()
   }
 
-  function adjustVolume(delta) {
+  // Volume. Chromium-based browsers (Brave, Chrome, web apps) report an MPRIS
+  // volume but ignore changes to it, so the slider did nothing for them.
+  // Instead, change the player's own audio stream in PipeWire when one can be
+  // matched to it (like the system mixer does), and only fall back to MPRIS
+  // volume when there's no matching stream.
+  readonly property var playerStream: {
     var p = activePlayer
-    if (!p || !p.volumeSupported) return
-    var base = pendingVolume >= 0 ? pendingVolume : p.volume
+    if (!p) return null
+    var key = MediaModel.streamLabelKey(MediaModel.playerAppLabel(p))
+    if (!key) return null
+    var nodes = Pipewire.nodes ? Pipewire.nodes.values : []
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i]
+      if (!n || !n.isStream || !n.audio || !MediaModel.isPlaybackStream(n)) continue
+      var streamKey = MediaModel.streamLabelKey(MediaModel.rawStreamLabel(n))
+      if (streamKey && (streamKey === key || streamKey.indexOf(key) !== -1 || key.indexOf(streamKey) !== -1))
+        return n
+    }
+    return null
+  }
+  PwObjectTracker { objects: root.playerStream ? [root.playerStream] : [] }
+
+  readonly property bool usesStreamVolume: playerStream !== null && playerStream.ready && playerStream.audio !== null
+  readonly property bool volumeAvailable: usesStreamVolume || (activePlayer !== null && activePlayer.volumeSupported)
+  readonly property real currentVolume: usesStreamVolume ? playerStream.audio.volume
+    : (activePlayer && activePlayer.volumeSupported ? activePlayer.volume : 0)
+
+  function applyVolume(value) {
+    if (usesStreamVolume) playerStream.audio.volume = value
+    else if (activePlayer && activePlayer.volumeSupported) activePlayer.volume = value
+  }
+
+  function adjustVolume(delta) {
+    if (!volumeAvailable) return
+    var base = pendingVolume >= 0 ? pendingVolume : currentVolume
     queueVolume(Math.max(0, Math.min(1, base + delta)))
   }
 
@@ -242,7 +274,7 @@ BarWidget {
   }
   function flushVolume() {
     volumeFlush.stop()
-    if (pendingVolume >= 0 && activePlayer && activePlayer.volumeSupported) activePlayer.volume = pendingVolume
+    if (pendingVolume >= 0 && volumeAvailable) applyVolume(pendingVolume)
     pendingVolume = -1
   }
   function queueVolume(value) {
@@ -803,12 +835,12 @@ BarWidget {
           id: volume
           width: parent.width
           spacing: Style.space(8)
-          visible: root.activePlayer !== null && root.activePlayer.volumeSupported
+          visible: root.volumeAvailable
 
           property bool dragging: false
           property real dragValue: 0
           readonly property real level: dragging ? dragValue
-            : (root.activePlayer && root.activePlayer.volumeSupported ? Math.max(0, Math.min(1, root.activePlayer.volume)) : 0)
+            : Math.max(0, Math.min(1, root.currentVolume))
 
           Text {
             id: volumeIcon
