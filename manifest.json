@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "vinicgobbi.media",
   "name": "Media Manager",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "author": "vinicgobbi",
   "license": "MIT",
-  "homepage": "https://github.com/vinicgobbi/omarchy-plugin-media",
+  "homepage": "https://github.com/T3mon/omarchy-plugin-media",
   "description": "MPRIS media control: left click opens the popup, right click plays/pauses",
   "kinds": [
     "service",

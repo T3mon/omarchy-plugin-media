@@ -1,3 +1,23 @@
+## v0.3.0 (2026-11-12)
+
+### Feat
+
+- mute: click the speaker icon to mute just this player
+- output picker: move just this player's sound to another device; the list
+  sits behind the current output's name and hides unplugged outputs (HDMI
+  with no monitor)
+- copy song: click the title to copy "Artist – Title" (or the track link)
+- Spotify web app: shuffle, repeat and queue buttons that send Spotify's own
+  shortcuts to its window; shuffle/repeat state is a local guess
+- "Open player" for browsers and web apps, which can't raise themselves:
+  focuses the window showing the track through Hyprland
+
+### Fix
+
+- volume slider did nothing for browsers and web apps: it now sets the
+  player's PipeWire stream volume
+- no spaces around the separator in the bar text
+
 ## v0.2.1 (2026-11-03)
 
 ### Fix
