@@ -40,7 +40,7 @@
       "hideWhenPaused": false,
       "vizBar": false,
       "vizPopup": false,
-      "vizStyle": "bars",
+      "vizStyle": "mirror",
       "dynamicWidth": false,
       "textMode": "scroll",
       "maxWidth": 180,
@@ -156,7 +156,7 @@
           "wave",
           "mirror"
         ],
-        "defaultValue": "bars"
+        "defaultValue": "mirror"
       },
       {
         "key": "dynamicWidth",

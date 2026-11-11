@@ -6,7 +6,8 @@
   while headphones are plugged in); picking one switches the card's profile
   and resumes playback if the switch paused it
 - visualizer: faint bars behind the bar widget and/or the popup, with its
-  own tab in the advanced options and three styles (bars, wave, mirror)
+  own tab in the advanced options and three styles (mirror by default,
+  bars, wave)
 
 ### Fix
 

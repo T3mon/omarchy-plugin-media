@@ -81,9 +81,10 @@ slider. The gear in the corner opens the advanced options.
   it switches the card back, which moves **all** sound there, not just this
   player. Re-plugging the headphones may switch it again.
 - **Visualizer:** faint bars that move with the music, behind the widget in
-  the bar and/or behind the popup. The advanced options have a *Visualizer*
+  the bar and/or behind the popup. The advanced options have a *Visuals*
   tab: turn it on in the bar and/or the popup (both off by default) and pick
-  a style: *Bars*, *Wave* (a filled curve) or *Mirror* (bars from the middle).
+  a style: *Mirror* (bars from the middle, the default), *Bars* or *Wave*
+  (a filled curve).
   `helper/viz.py` records the default output with `pw-record` and needs only
   Python's standard library. It runs only while something plays and a
   visualizer is on screen.
@@ -151,7 +152,7 @@ that differ from the defaults are written there:
 | `hideWhenPaused` | `false`  | Hide the widget while nothing is playing                            |
 | `vizBar`         | `false`  | Visualizer bars behind the widget in the bar                        |
 | `vizPopup`       | `false`  | Visualizer bars behind the popup                                    |
-| `vizStyle`       | `"bars"` | Visualizer style: `bars`, `wave` or `mirror`                        |
+| `vizStyle`       | `"mirror"` | Visualizer style: `bars`, `wave` or `mirror`                      |
 | `dynamicWidth`   | `false`  | `true`: show the whole text and fit the widget to it                |
 | `textMode`       | `scroll` | Fixed width only: `scroll` the text or cut it (`ellipsis`) with "..." |
 | `maxWidth`       | `180`    | Fixed width only: widget width in px                                |

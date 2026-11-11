@@ -325,7 +325,7 @@ Column {
       { value: "content", label: "Content" },
       { value: "format", label: "Format" },
       { value: "size", label: "Size" },
-      { value: "visualizer", label: "Visualizer" }
+      { value: "visualizer", label: "Visuals" }
     ]
     value: root.tab
     onChanged: function(v) { root.tab = v }

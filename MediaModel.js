@@ -199,7 +199,7 @@ function defaultPrefs() {
     hideWhenPaused: false,
     vizBar: false,        // audio visualizer behind the widget in the bar
     vizPopup: false,      // audio visualizer behind the popup
-    vizStyle: "bars",     // "bars", "wave" (filled curve) or "mirror" (bars from the middle)
+    vizStyle: "mirror",   // "bars", "wave" (filled curve) or "mirror" (bars from the middle)
     dynamicWidth: false,  // true: always show the whole text and fit the widget to it
     // The next three only apply to a fixed width (dynamicWidth false):
     textMode: "scroll",   // "scroll" (marquee) or "ellipsis" (cut at maxChars with "...")
