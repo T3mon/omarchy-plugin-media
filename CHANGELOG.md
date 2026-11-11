@@ -5,6 +5,8 @@
 - output picker also lists outputs on another sound card profile (Speaker
   while headphones are plugged in); picking one switches the card's profile
   and resumes playback if the switch paused it
+- visualizer: faint bars behind the bar widget and/or the popup, each with
+  its own toggle in the advanced options
 
 ### Fix
 

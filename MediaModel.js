@@ -197,6 +197,8 @@ function defaultPrefs() {
     artistFirst: false,   // "artist · title" instead of "title · artist"
     separator: "\u00b7",  // between the pieces of text
     hideWhenPaused: false,
+    vizBar: false,        // audio visualizer behind the widget in the bar
+    vizPopup: false,      // audio visualizer behind the popup
     dynamicWidth: false,  // true: always show the whole text and fit the widget to it
     // The next three only apply to a fixed width (dynamicWidth false):
     textMode: "scroll",   // "scroll" (marquee) or "ellipsis" (cut at maxChars with "...")
@@ -230,6 +232,8 @@ function normalizePrefs(input) {
     artistFirst: bool("artistFirst"),
     separator: SEPARATORS.indexOf(src.separator) !== -1 ? src.separator : d.separator,
     hideWhenPaused: bool("hideWhenPaused"),
+    vizBar: bool("vizBar"),
+    vizPopup: bool("vizPopup"),
     dynamicWidth: bool("dynamicWidth"),
     textMode: src.textMode === "ellipsis" ? "ellipsis" : "scroll",
     maxWidth: clampInt(src.maxWidth, 60, 600, d.maxWidth),

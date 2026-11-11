@@ -82,6 +82,38 @@ BarWidget {
   property bool popupOpen: false
 
   // "LIVE" pill shown where the time would be.
+  // Faint bars behind the widget / popup. Heights come from root.vizLevels
+  // (0..100), bass on the left.
+  component VizBars: Item {
+    id: viz
+    property color barColor: Color.accent
+    property real maxOpacity: 0.3
+    readonly property var levels: root.vizLevels
+    visible: root.vizRunning && levels.length > 0
+    clip: true
+
+    Row {
+      anchors.fill: parent
+      spacing: Math.max(1, Math.round(viz.width / Math.max(1, viz.levels.length) * 0.25))
+
+      Repeater {
+        model: viz.levels.length
+
+        Rectangle {
+          required property int index
+          readonly property real level: (viz.levels[index] || 0) / 100
+          width: (viz.width - parent.spacing * (viz.levels.length - 1)) / Math.max(1, viz.levels.length)
+          height: Math.max(1, viz.height * level)
+          anchors.bottom: parent.bottom
+          radius: Math.min(width / 2, Style.space(2))
+          color: viz.barColor
+          opacity: viz.maxOpacity * (0.35 + 0.65 * level)
+          Behavior on height { NumberAnimation { duration: 60 } }
+        }
+      }
+    }
+  }
+
   component LiveBadge: Rectangle {
     property string family: ""
     property int pixelSize: Style.font.caption
@@ -389,6 +421,32 @@ BarWidget {
     mediaService.selectPlayer(mediaService.playerKey(next))
   }
 
+  // ── Visualizer ──────────────────────────────────────────────────────────
+  // helper/viz.py records the default output's monitor (pw-record) and prints
+  // bar heights ~30 times a second. It only runs while something plays and
+  // a visualizer is actually on screen.
+  property var vizLevels: []
+  readonly property bool vizRunning: !!activePlayer && activePlayer.isPlaying
+    && ((prefs.vizBar && shown && !bar.vertical) || (prefs.vizPopup && popupOpen && !settingsOpen))
+  readonly property string _vizScript: decodeURIComponent(
+    Qt.resolvedUrl("helper/viz.py").toString().replace(/^file:\/\//, ""))
+
+  onVizRunningChanged: if (!vizRunning) vizLevels = []
+
+  Process {
+    id: vizProcess
+    running: root.vizRunning
+    command: ["python3", "-I", root._vizScript, "--bars", "24", "--fps", "30"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        var parts = line.trim().split(" ")
+        var out = []
+        for (var i = 0; i < parts.length; i++) out.push(parseInt(parts[i], 10) || 0)
+        root.vizLevels = out
+      }
+    }
+  }
+
   // ── Open player ─────────────────────────────────────────────────────────
   // Players that can't raise themselves (Chromium-based browsers and web apps
   // report CanRaise = false) get their window focused through Hyprland
@@ -568,6 +626,14 @@ BarWidget {
   readonly property real openPanelIndicatorWidth: implicitWidth
   readonly property real openPanelIndicatorHeight: implicitHeight
 
+  VizBars {
+    anchors.fill: parent
+    anchors.topMargin: Style.space(3)
+    anchors.bottomMargin: Style.space(3)
+    visible: root.prefs.vizBar && root.vizRunning && !root.bar.vertical
+    maxOpacity: 0.4
+  }
+
   Row {
     id: row
     anchors.centerIn: parent
@@ -741,6 +807,15 @@ BarWidget {
         else if (t === "r" || t === "R") root.cycleRepeat()
         else if (t === "f" || t === "F") root.cycleRate()
         else if (t === "o" || t === "O") root.openPlayer()
+      }
+
+      VizBars {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: parent.height * 0.45
+        visible: root.prefs.vizPopup && root.vizRunning && !root.settingsOpen
+        maxOpacity: 0.25
       }
 
       Flickable {

@@ -389,6 +389,20 @@ Column {
       hint: "The widget disappears while nothing plays"
       ToggleSwitch { foreground: root.foreground; checked: root.prefs.hideWhenPaused; onToggled: root.changed("hideWhenPaused", !checked) }
     }
+
+    Option {
+      fg: root.foreground; family: root.fontFamily
+      label: "Visualizer in bar"
+      hint: "Faint bars behind the widget that move with the music"
+      ToggleSwitch { foreground: root.foreground; checked: root.prefs.vizBar; onToggled: root.changed("vizBar", !checked) }
+    }
+
+    Option {
+      fg: root.foreground; family: root.fontFamily
+      label: "Visualizer in popup"
+      hint: "The same bars behind the popup"
+      ToggleSwitch { foreground: root.foreground; checked: root.prefs.vizPopup; onToggled: root.changed("vizPopup", !checked) }
+    }
   }
 
   // --- tab: format ----------------------------------------------------------

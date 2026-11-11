@@ -80,6 +80,12 @@ slider. The gear in the corner opens the advanced options.
   without the speakers, so *Speaker* would vanish. It's still listed; picking
   it switches the card back, which moves **all** sound there, not just this
   player. Re-plugging the headphones may switch it again.
+- **Visualizer:** faint bars that move with the music, behind the widget in
+  the bar and/or behind the popup. Turn each on in the advanced options
+  (*Visualizer in bar*, *Visualizer in popup*); both are off by default.
+  `helper/viz.py` records the default output with `pw-record` and needs only
+  Python's standard library. It runs only while something plays and a
+  visualizer is on screen.
 - **Copy song:** click the song title to copy "Artist – Title" (or the
   track's link, when the player gives one) to the clipboard. Uses `wl-copy`.
 
@@ -142,6 +148,8 @@ that differ from the defaults are written there:
 | `artistFirst`    | `false`  | "artist · title" instead of "title · artist"                        |
 | `separator`      | `"·"`    | Between the pieces of text: `·`, `-`, `\|` or `/`                   |
 | `hideWhenPaused` | `false`  | Hide the widget while nothing is playing                            |
+| `vizBar`         | `false`  | Visualizer bars behind the widget in the bar                        |
+| `vizPopup`       | `false`  | Visualizer bars behind the popup                                    |
 | `dynamicWidth`   | `false`  | `true`: show the whole text and fit the widget to it                |
 | `textMode`       | `scroll` | Fixed width only: `scroll` the text or cut it (`ellipsis`) with "..." |
 | `maxWidth`       | `180`    | Fixed width only: widget width in px                                |

@@ -38,6 +38,8 @@
       "artistFirst": false,
       "separator": "·",
       "hideWhenPaused": false,
+      "vizBar": false,
+      "vizPopup": false,
       "dynamicWidth": false,
       "textMode": "scroll",
       "maxWidth": 180,
@@ -127,6 +129,20 @@
         "type": "boolean",
         "label": "Hide when paused",
         "description": "The widget disappears while nothing is playing.",
+        "defaultValue": false
+      },
+      {
+        "key": "vizBar",
+        "type": "boolean",
+        "label": "Visualizer in bar",
+        "description": "Faint bars that move with the music, behind the widget.",
+        "defaultValue": false
+      },
+      {
+        "key": "vizPopup",
+        "type": "boolean",
+        "label": "Visualizer in popup",
+        "description": "Faint bars that move with the music, behind the popup.",
         "defaultValue": false
       },
       {
