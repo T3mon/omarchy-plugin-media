@@ -255,10 +255,35 @@ BarWidget {
     moveProcess.running = true
   }
 
+  // Browsers pause when their output disappears, which is what a profile
+  // switch does, so resume afterwards if it was playing.
+  property bool resumeAfterSwitch: false
+
   function switchCardProfile(out) {
     if (!out || profileProcess.running) return
+    resumeAfterSwitch = !!activePlayer && activePlayer.isPlaying
     profileProcess.command = ["pactl", "set-card-profile", String(out.card), String(out.profile)]
     profileProcess.running = true
+  }
+
+  // Sinks come and go (profile switches, plugging HDMI or Bluetooth), and
+  // their availability is only known once they exist, so re-check shortly
+  // after the set changes instead of right away.
+  readonly property string sinkNamesKey: {
+    var nodes = Pipewire.nodes ? Pipewire.nodes.values : []
+    return nodes.filter(function(n) { return n && n.isSink && !n.isStream })
+      .map(function(n) { return String(n.name) }).sort().join("\n")
+  }
+  onSinkNamesKeyChanged: sinkSettle.restart()
+  Timer { id: sinkSettle; interval: 600; onTriggered: root.refreshSinkAvailability() }
+  Timer {
+    id: resumeTimer
+    interval: 1500
+    onTriggered: {
+      if (root.resumeAfterSwitch && root.activePlayer && !root.activePlayer.isPlaying)
+        root.activePlayer.play()
+      root.resumeAfterSwitch = false
+    }
   }
 
   Process {
@@ -291,8 +316,10 @@ BarWidget {
     }
   }
   Process { id: moveProcess }
-  // The new profile's sinks show up a moment after the switch.
-  Process { id: profileProcess; onExited: root.refreshSinkAvailability() }
+  Process {
+    id: profileProcess
+    onExited: { sinkSettle.restart(); if (root.resumeAfterSwitch) resumeTimer.restart() }
+  }
   Component.onCompleted: refreshSinkAvailability()
 
   // ── Copy song ───────────────────────────────────────────────────────────

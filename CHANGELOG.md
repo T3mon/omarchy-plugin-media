@@ -4,6 +4,12 @@
 
 - output picker also lists outputs on another sound card profile (Speaker
   while headphones are plugged in); picking one switches the card's profile
+  and resumes playback if the switch paused it
+
+### Fix
+
+- unplugged outputs are re-checked whenever the list of outputs changes
+  (after a profile switch they showed up again)
 
 ## v0.3.0 (2026-11-12)
 
