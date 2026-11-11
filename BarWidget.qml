@@ -82,34 +82,83 @@ BarWidget {
   property bool popupOpen: false
 
   // "LIVE" pill shown where the time would be.
-  // Faint bars behind the widget / popup. Heights come from root.vizLevels
-  // (0..100), bass on the left.
+  // Faint visualizer behind the widget / popup. Levels come from
+  // root.vizLevels (0..100), bass on the left. Styles: "bars", "wave" (a
+  // filled curve through the levels) and "mirror" (bars from the middle).
   component VizBars: Item {
     id: viz
     property color barColor: Color.accent
     property real maxOpacity: 0.3
     readonly property var levels: root.vizLevels
+    readonly property string style: root.prefs.vizStyle
     visible: root.vizRunning && levels.length > 0
     clip: true
 
     Row {
       anchors.fill: parent
+      visible: viz.style !== "wave"
       spacing: Math.max(1, Math.round(viz.width / Math.max(1, viz.levels.length) * 0.25))
 
       Repeater {
-        model: viz.levels.length
+        model: viz.style !== "wave" ? viz.levels.length : 0
 
         Rectangle {
           required property int index
           readonly property real level: (viz.levels[index] || 0) / 100
           width: (viz.width - parent.spacing * (viz.levels.length - 1)) / Math.max(1, viz.levels.length)
           height: Math.max(1, viz.height * level)
-          anchors.bottom: parent.bottom
+          y: viz.style === "mirror" ? (viz.height - height) / 2 : viz.height - height
           radius: Math.min(width / 2, Style.space(2))
           color: viz.barColor
           opacity: viz.maxOpacity * (0.35 + 0.65 * level)
           Behavior on height { NumberAnimation { duration: 60 } }
         }
+      }
+    }
+
+    Canvas {
+      id: wave
+      anchors.fill: parent
+      visible: viz.style === "wave"
+      opacity: viz.maxOpacity * 1.6
+      renderStrategy: Canvas.Cooperative
+
+      Connections {
+        target: viz
+        function onLevelsChanged() { if (wave.visible) wave.requestPaint() }
+      }
+
+      onPaint: {
+        var ctx = getContext("2d")
+        ctx.reset()
+        var lv = viz.levels, n = lv.length
+        if (n < 2) return
+        var w = width, h = height
+        var pts = []
+        for (var i = 0; i < n; i++)
+          pts.push({ x: w * i / (n - 1), y: h - Math.max(0.03, (lv[i] || 0) / 100) * h })
+        // Smooth curve: quadratic segments through the midpoints.
+        function curve() {
+          ctx.lineTo(pts[0].x, pts[0].y)
+          for (var j = 1; j < n - 1; j++) {
+            var mx = (pts[j].x + pts[j + 1].x) / 2, my = (pts[j].y + pts[j + 1].y) / 2
+            ctx.quadraticCurveTo(pts[j].x, pts[j].y, mx, my)
+          }
+          ctx.lineTo(pts[n - 1].x, pts[n - 1].y)
+        }
+        ctx.beginPath()
+        ctx.moveTo(0, h)
+        curve()
+        ctx.lineTo(w, h)
+        ctx.closePath()
+        ctx.fillStyle = Qt.rgba(viz.barColor.r, viz.barColor.g, viz.barColor.b, 0.45)
+        ctx.fill()
+        ctx.beginPath()
+        ctx.moveTo(pts[0].x, pts[0].y)
+        curve()
+        ctx.lineWidth = 1.5
+        ctx.strokeStyle = viz.barColor
+        ctx.stroke()
       }
     }
   }

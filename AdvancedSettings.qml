@@ -324,7 +324,8 @@ Column {
     options: [
       { value: "content", label: "Content" },
       { value: "format", label: "Format" },
-      { value: "size", label: "Size" }
+      { value: "size", label: "Size" },
+      { value: "visualizer", label: "Visualizer" }
     ]
     value: root.tab
     onChanged: function(v) { root.tab = v }
@@ -389,20 +390,6 @@ Column {
       hint: "The widget disappears while nothing plays"
       ToggleSwitch { foreground: root.foreground; checked: root.prefs.hideWhenPaused; onToggled: root.changed("hideWhenPaused", !checked) }
     }
-
-    Option {
-      fg: root.foreground; family: root.fontFamily
-      label: "Visualizer in bar"
-      hint: "Faint bars behind the widget that move with the music"
-      ToggleSwitch { foreground: root.foreground; checked: root.prefs.vizBar; onToggled: root.changed("vizBar", !checked) }
-    }
-
-    Option {
-      fg: root.foreground; family: root.fontFamily
-      label: "Visualizer in popup"
-      hint: "The same bars behind the popup"
-      ToggleSwitch { foreground: root.foreground; checked: root.prefs.vizPopup; onToggled: root.changed("vizPopup", !checked) }
-    }
   }
 
   // --- tab: format ----------------------------------------------------------
@@ -442,6 +429,52 @@ Column {
         value: root.prefs.separator
         onChanged: function(v) { root.changed("separator", v) }
       }
+    }
+  }
+
+  // --- tab: visualizer ------------------------------------------------------
+
+  Column {
+    width: parent.width
+    spacing: Style.space(10)
+    visible: root.tab === "visualizer"
+
+    Option {
+      fg: root.foreground; family: root.fontFamily
+      label: "In the bar"
+      hint: "Behind the widget's text"
+      ToggleSwitch { foreground: root.foreground; checked: root.prefs.vizBar; onToggled: root.changed("vizBar", !checked) }
+    }
+
+    Option {
+      fg: root.foreground; family: root.fontFamily
+      label: "In the popup"
+      hint: "Behind the controls, fainter"
+      ToggleSwitch { foreground: root.foreground; checked: root.prefs.vizPopup; onToggled: root.changed("vizPopup", !checked) }
+    }
+
+    PanelSeparator { foreground: root.foreground }
+
+    Option {
+      fg: root.foreground; family: root.fontFamily
+      label: "Style"
+      ButtonGroup {
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        options: [
+          { value: "bars", label: "Bars" },
+          { value: "wave", label: "Wave" },
+          { value: "mirror", label: "Mirror" }
+        ]
+        value: root.prefs.vizStyle
+        onChanged: function(v) { root.changed("vizStyle", v) }
+      }
+    }
+
+    Hint {
+      width: parent.width
+      fg: root.foreground; family: root.fontFamily
+      text: "It moves only while something plays. Bass on the left, treble on the right."
     }
   }
 

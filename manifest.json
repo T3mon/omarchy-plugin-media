@@ -40,6 +40,7 @@
       "hideWhenPaused": false,
       "vizBar": false,
       "vizPopup": false,
+      "vizStyle": "bars",
       "dynamicWidth": false,
       "textMode": "scroll",
       "maxWidth": 180,
@@ -144,6 +145,18 @@
         "label": "Visualizer in popup",
         "description": "Faint bars that move with the music, behind the popup.",
         "defaultValue": false
+      },
+      {
+        "key": "vizStyle",
+        "type": "enum",
+        "label": "Visualizer style",
+        "description": "Bars, a filled wave, or bars mirrored from the middle.",
+        "options": [
+          "bars",
+          "wave",
+          "mirror"
+        ],
+        "defaultValue": "bars"
       },
       {
         "key": "dynamicWidth",

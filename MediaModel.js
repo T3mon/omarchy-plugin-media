@@ -199,6 +199,7 @@ function defaultPrefs() {
     hideWhenPaused: false,
     vizBar: false,        // audio visualizer behind the widget in the bar
     vizPopup: false,      // audio visualizer behind the popup
+    vizStyle: "bars",     // "bars", "wave" (filled curve) or "mirror" (bars from the middle)
     dynamicWidth: false,  // true: always show the whole text and fit the widget to it
     // The next three only apply to a fixed width (dynamicWidth false):
     textMode: "scroll",   // "scroll" (marquee) or "ellipsis" (cut at maxChars with "...")
@@ -208,6 +209,7 @@ function defaultPrefs() {
 }
 
 var SEPARATORS = ["\u00b7", "-", "|", "/"]
+var VIZ_STYLES = ["bars", "wave", "mirror"]
 
 function clampInt(value, min, max, fallback) {
   var n = parseInt(value, 10)
@@ -234,6 +236,7 @@ function normalizePrefs(input) {
     hideWhenPaused: bool("hideWhenPaused"),
     vizBar: bool("vizBar"),
     vizPopup: bool("vizPopup"),
+    vizStyle: VIZ_STYLES.indexOf(src.vizStyle) !== -1 ? src.vizStyle : d.vizStyle,
     dynamicWidth: bool("dynamicWidth"),
     textMode: src.textMode === "ellipsis" ? "ellipsis" : "scroll",
     maxWidth: clampInt(src.maxWidth, 60, 600, d.maxWidth),
