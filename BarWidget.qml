@@ -154,11 +154,11 @@ BarWidget {
     p.positionChanged()
   }
 
-  // Volume. Chromium-based browsers (Brave, Chrome, web apps) report an MPRIS
-  // volume but ignore changes to it, so the slider did nothing for them.
-  // Instead, change the player's own audio stream in PipeWire when one can be
-  // matched to it (like the system mixer does), and only fall back to MPRIS
-  // volume when there's no matching stream.
+  // ── Volume ──────────────────────────────────────────────────────────────
+  // Chromium-based browsers (Brave, Chrome, web apps) report an MPRIS volume
+  // but ignore changes to it. So change the player's own PipeWire stream when
+  // one can be matched to it (like the system mixer does), and only fall back
+  // to MPRIS volume when there's no matching stream.
   readonly property var playerStream: {
     var p = activePlayer
     if (!p) return null
@@ -186,24 +186,35 @@ BarWidget {
     else if (activePlayer && activePlayer.volumeSupported) activePlayer.volume = value
   }
 
-  // Mute. On the PipeWire stream when there is one (browsers ignore MPRIS
-  // mute too); otherwise fake it by dropping MPRIS volume to 0 and back.
+  function adjustVolume(delta) {
+    if (!volumeAvailable) return
+    var base = pendingVolume >= 0 ? pendingVolume : currentVolume
+    queueVolume(Math.max(0, Math.min(1, base + delta)))
+  }
+
+  // Mute: the PipeWire stream's own mute when there is one (browsers ignore
+  // MPRIS here too), otherwise MPRIS volume to 0 and back.
   property real volumeBeforeMute: -1
   readonly property bool muted: usesStreamVolume ? playerStream.audio.muted
     : (volumeBeforeMute >= 0 && currentVolume <= 0)
+
   function toggleMute() {
-    if (usesStreamVolume) { playerStream.audio.muted = !playerStream.audio.muted; return }
-    if (!activePlayer || !activePlayer.volumeSupported) return
-    if (muted) { activePlayer.volume = volumeBeforeMute; volumeBeforeMute = -1 }
-    else { volumeBeforeMute = activePlayer.volume; activePlayer.volume = 0 }
+    if (usesStreamVolume) {
+      playerStream.audio.muted = !playerStream.audio.muted
+    } else if (activePlayer && activePlayer.volumeSupported) {
+      if (muted) { activePlayer.volume = volumeBeforeMute; volumeBeforeMute = -1 }
+      else { volumeBeforeMute = activePlayer.volume; activePlayer.volume = 0 }
+    }
   }
 
-  // Output device. Moves only this player's stream to another sink, the way
-  // pavucontrol does (pactl's sink-input index is the stream's object.serial).
-  // Sinks whose active port is unplugged (HDMI/DisplayPort with no monitor,
-  // mostly) are hidden. PipeWire still lists them, so ask pactl which ones
-  // are "not available", each time the popup opens.
+  // ── Output device ───────────────────────────────────────────────────────
+  // Moves only this player's stream to another sink, like pavucontrol does
+  // (pactl's sink-input index is the stream's object.serial). PipeWire also
+  // lists sinks whose port is unplugged (HDMI with no monitor), so pactl is
+  // asked which ones are "not available" each time the popup opens.
+  property bool outputsOpen: false
   property var unavailableSinks: []
+
   readonly property var outputSinks: {
     var nodes = Pipewire.nodes ? Pipewire.nodes.values : []
     var hidden = unavailableSinks
@@ -211,6 +222,32 @@ BarWidget {
       return n && n.isSink && !n.isStream && n.audio && hidden.indexOf(String(n.name)) === -1
     })
   }
+  readonly property bool outputSwitchable: usesStreamVolume && outputSinks.length > 1
+
+  PwNodeLinkTracker { id: streamLinks; node: root.playerStream }
+  readonly property var currentSink: {
+    var groups = streamLinks.linkGroups || []
+    for (var i = 0; i < groups.length; i++)
+      if (groups[i] && groups[i].target && groups[i].target.isSink) return groups[i].target
+    return null
+  }
+
+  function sinkLabel(n) {
+    return String(n.nickname || n.description || n.name || "Output")
+  }
+
+  function refreshSinkAvailability() {
+    if (!sinkAvailability.running) sinkAvailability.running = true
+  }
+
+  function moveToSink(sink) {
+    if (!usesStreamVolume || !sink || sink === currentSink || moveProcess.running) return
+    var serial = playerStream.properties ? playerStream.properties["object.serial"] : undefined
+    if (serial === undefined) return
+    moveProcess.command = ["pactl", "move-sink-input", String(serial), String(sink.name)]
+    moveProcess.running = true
+  }
+
   Process {
     id: sinkAvailability
     command: ["bash", "-c", "pactl -f json list sinks 2>/dev/null | jq -r '.[] | . as $s | "
@@ -220,36 +257,17 @@ BarWidget {
       onStreamFinished: root.unavailableSinks = text.split("\n").filter(function(x) { return x !== "" })
     }
   }
-  function refreshSinkAvailability() { if (!sinkAvailability.running) sinkAvailability.running = true }
-  Component.onCompleted: refreshSinkAvailability()
-  property bool outputsOpen: false
-  PwNodeLinkTracker { id: streamLinks; node: root.playerStream }
-  readonly property var currentSink: {
-    var groups = streamLinks.linkGroups || []
-    for (var i = 0; i < groups.length; i++)
-      if (groups[i] && groups[i].target && groups[i].target.isSink) return groups[i].target
-    return null
-  }
-  readonly property bool outputSwitchable: usesStreamVolume && outputSinks.length > 1
-  function sinkLabel(n) {
-    return String(n.nickname || n.description || n.name || "Output")
-  }
-  function moveToSink(sink) {
-    if (!usesStreamVolume || !sink || sink === currentSink || moveProcess.running) return
-    var serial = playerStream.properties ? playerStream.properties["object.serial"] : undefined
-    if (serial === undefined) return
-    moveProcess.command = ["pactl", "move-sink-input", String(serial), String(sink.name)]
-    moveProcess.running = true
-  }
   Process { id: moveProcess }
+  Component.onCompleted: refreshSinkAvailability()
 
-  // Copy "Artist – Title" (or the track's URL when the player gives one).
+  // ── Copy song ───────────────────────────────────────────────────────────
+  // "Artist – Title", or the track's link when the player gives one.
   property bool justCopied: false
+
   function copyTrack() {
     var p = activePlayer
     if (!p || copyProcess.running) return
-    var md = p.metadata || {}
-    var url = String(md["xesam:url"] || "")
+    var url = String((p.metadata || {})["xesam:url"] || "")
     var text = /^https?:/.test(url) ? url
       : [p.trackArtist, p.trackTitle].filter(function(x) { return !!x }).join(" – ")
     if (!text) return
@@ -258,14 +276,9 @@ BarWidget {
     justCopied = true
     copiedTimer.restart()
   }
+
   Process { id: copyProcess }
   Timer { id: copiedTimer; interval: 1500; onTriggered: root.justCopied = false }
-
-  function adjustVolume(delta) {
-    if (!volumeAvailable) return
-    var base = pendingVolume >= 0 ? pendingVolume : currentVolume
-    queueVolume(Math.max(0, Math.min(1, base + delta)))
-  }
 
   function cycleRate() {
     var p = activePlayer
@@ -314,12 +327,13 @@ BarWidget {
     mediaService.selectPlayer(mediaService.playerKey(next))
   }
 
+  // ── Open player ─────────────────────────────────────────────────────────
   // Players that can't raise themselves (Chromium-based browsers and web apps
   // report CanRaise = false) get their window focused through Hyprland
   // instead: first a window whose title contains the track title (a web app
   // or the browser tab showing it), else any window of that app.
   readonly property bool canOpenPlayer: !!activePlayer
-    && (activePlayer.canRaise || (title !== "" || playerName !== ""))
+    && (activePlayer.canRaise || title !== "" || playerName !== "")
 
   readonly property string _focusScript: [
     "addr=$(hyprctl clients -j | jq -r --arg t \"$1\" --arg c \"$2\" '",
@@ -327,26 +341,77 @@ BarWidget {
     "   + map(select($c != \"\" and (.class | ascii_downcase | contains($c | ascii_downcase)))))",
     "  | .[0].address // empty')",
     "[ -n \"$addr\" ] || exit 1",
+    // Lua-config Hyprland first, then the classic dispatcher.
     "hyprctl dispatch \"hl.dsp.focus({ window = \\\"address:$addr\\\" })\" >/dev/null 2>&1 \\",
     "  || hyprctl dispatch focuswindow \"address:$addr\" >/dev/null 2>&1"
   ].join("\n")
 
+  function openPlayer() {
+    var p = activePlayer
+    if (!p) return
+    if (p.canRaise) {
+      p.raise()
+    } else {
+      if (focusProcess.running) return
+      // "Brave" -> "brave" matches window classes like brave-browser and
+      // brave-open.spotify.com__-Default.
+      var app = String(p.identity || p.desktopEntry || "").toLowerCase().split(" ")[0]
+      focusProcess.command = ["bash", "-c", root._focusScript, "_", String(p.trackTitle || ""), app]
+      focusProcess.running = true
+    }
+    popupOpen = false
+  }
+
   Process { id: focusProcess }
 
-  // Shuffle / repeat for the Spotify web app. Browsers don't expose shuffle
-  // or repeat over MPRIS, so for a Chromium-based player whose window is the
-  // Spotify web app (class contains "open.spotify.com"), the buttons send
-  // Spotify's own shortcuts (Alt+S / Alt+R) straight to that window instead.
-  // Spotify doesn't report the state back, so the buttons show a guess: they
-  // assume both start off and track our own clicks. Clicking Spotify's own
-  // buttons (or reloading it) makes the guess wrong until clicked back.
-  // Every other player without native support keeps them hidden.
+  // ── Spotify web app ─────────────────────────────────────────────────────
+  // Browsers don't expose shuffle or repeat over MPRIS. When the player is a
+  // Chromium-based one and the Spotify web app's window shows the playing
+  // track, the shuffle / repeat / queue buttons send Spotify's own shortcuts
+  // (Alt+S, Alt+R, Alt+Shift+Q) to that window. Spotify doesn't report the
+  // state back, so shuffle and repeat show a guess that starts off and
+  // follows our own clicks. Other players without native support keep these
+  // buttons hidden.
   property string spotifyWebWindow: ""
-  onSpotifyWebWindowChanged: { spotifyShuffleGuess = false; spotifyRepeatGuess = 0 }
   property bool spotifyShuffleGuess: false
-  property int spotifyRepeatGuess: 0 // 0 off, 1 repeat all, 2 repeat one (Spotify's Alt+R cycle)
+  property int spotifyRepeatGuess: 0 // 0 off, 1 all, 2 one: Spotify's Alt+R cycle
   readonly property bool spotifyWebControls: spotifyWebWindow !== "" && !!activePlayer
     && !activePlayer.shuffleSupported && !activePlayer.loopSupported
+
+  onSpotifyWebWindowChanged: { spotifyShuffleGuess = false; spotifyRepeatGuess = 0 }
+
+  function refreshSpotifyWebWindow() {
+    var p = activePlayer
+    // Only Chromium-based players can be the web app.
+    if (!p || p.shuffleSupported || p.loopSupported || p.canRaise) { spotifyWebWindow = ""; return }
+    if (spotifyFinder.running) return
+    spotifyFinder.command = ["bash", "-c", spotifyFinder.script, "_", String(p.trackTitle || "")]
+    spotifyFinder.running = true
+  }
+
+  function _spotifyDispatch(fn, args) {
+    return "hl.dsp." + fn + "({ " + args + "window = \"address:" + spotifyWebWindow + "\" })"
+  }
+
+  // Returns whether the shortcut was sent, so the caller can update its guess.
+  function sendSpotifyShortcut(key) {
+    if (!spotifyWebControls || shortcutProcess.running) return false
+    shortcutProcess.command = ["hyprctl", "dispatch",
+      _spotifyDispatch("send_shortcut", "mods = \"ALT\", key = \"" + key + "\", ")]
+    shortcutProcess.running = true
+    return true
+  }
+
+  // Brings the window forward and toggles its queue panel (so it closes the
+  // queue if it's already open).
+  function openSpotifyQueue() {
+    if (!spotifyWebControls || shortcutProcess.running) return
+    shortcutProcess.command = ["bash", "-c", "hyprctl dispatch \"$1\" >/dev/null && hyprctl dispatch \"$2\" >/dev/null", "_",
+      _spotifyDispatch("focus", ""),
+      _spotifyDispatch("send_shortcut", "mods = \"ALT SHIFT\", key = \"Q\", ")]
+    shortcutProcess.running = true
+    popupOpen = false
+  }
 
   Process {
     id: spotifyFinder
@@ -364,57 +429,10 @@ BarWidget {
       }
     }
   }
-
-  function refreshSpotifyWebWindow() {
-    var p = activePlayer
-    // Only Chromium-based players can be the web app.
-    if (!p || p.shuffleSupported || p.loopSupported || p.canRaise) { spotifyWebWindow = ""; return }
-    if (spotifyFinder.running) return
-    spotifyFinder.command = ["bash", "-c", spotifyFinder.script, "_", String(p.trackTitle || "")]
-    spotifyFinder.running = true
-  }
+  Process { id: shortcutProcess }
 
   onActivePlayerChanged: { volumeBeforeMute = -1; refreshSpotifyWebWindow() }
   onTitleChanged: refreshSpotifyWebWindow()
-
-  function sendSpotifyShortcut(key) {
-    if (!spotifyWebControls || shortcutProcess.running) return false
-    shortcutProcess.command = ["hyprctl", "dispatch",
-      "hl.dsp.send_shortcut({ mods = \"ALT\", key = \"" + key + "\", window = \"address:" + spotifyWebWindow + "\" })"]
-    shortcutProcess.running = true
-    return true
-  }
-
-  Process { id: shortcutProcess }
-
-  // Brings the Spotify window forward and toggles its queue panel
-  // (Alt+Shift+Q). It's a toggle, so it closes the queue if already open.
-  function openSpotifyQueue() {
-    if (!spotifyWebControls || shortcutProcess.running) return
-    var win = "address:" + spotifyWebWindow
-    shortcutProcess.command = ["bash", "-c",
-      "hyprctl dispatch \"$1\" >/dev/null && hyprctl dispatch \"$2\" >/dev/null", "_",
-      "hl.dsp.focus({ window = \"" + win + "\" })",
-      "hl.dsp.send_shortcut({ mods = \"ALT SHIFT\", key = \"Q\", window = \"" + win + "\" })"]
-    shortcutProcess.running = true
-    popupOpen = false
-  }
-
-  function openPlayer() {
-    var p = activePlayer
-    if (!p) return
-    if (p.canRaise) {
-      p.raise()
-    } else {
-      if (focusProcess.running) return
-      // "Brave" -> "brave" matches window classes like brave-browser and
-      // brave-open.spotify.com__-Default.
-      var app = String(p.identity || p.desktopEntry || "").toLowerCase().split(" ")[0]
-      focusProcess.command = ["bash", "-c", root._focusScript, "_", String(p.trackTitle || ""), app]
-      focusProcess.running = true
-    }
-    popupOpen = false
-  }
 
   // Every action is a D-Bus call to the player. Bursts (wheel notches, double
   // clicks, key repeat) make players like Spotify stall, and isPlaying lags the

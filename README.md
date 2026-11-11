@@ -5,6 +5,11 @@ from the built-in `omarchy.media`. It shows what's playing over MPRIS and
 opens a popup with playback controls and a live progress bar you can seek
 with. What the widget shows in the bar is configurable.
 
+This is a fork of [vinicgobbi/omarchy-plugin-media](https://github.com/vinicgobbi/omarchy-plugin-media)
+that also makes browsers and web apps (Brave, Chrome, the Spotify web app)
+work properly, and adds mute, an output picker and copy song. See
+[CHANGELOG.md](CHANGELOG.md) for the full list.
+
 ## What it does
 
 - Bar widget with the play/pause state and the track text
@@ -12,6 +17,9 @@ with. What the widget shows in the bar is configurable.
 - **Live progress bar** with elapsed and total time, updated in real time
 - **Seek** by clicking, dragging or scrolling the bar (when the player allows it)
 - Shuffle, repeat, playback speed, volume and "open player" controls
+- **Mute**, an **output picker** and **copy song** in the popup
+- Works with browsers and web apps (volume, open player, Spotify web
+  shuffle / repeat / queue), see [Browser players](#browser-players-brave-web-apps)
 - Source list to switch between players (Tab in the popup)
 - **Advanced options** to choose what the bar shows and how it looks
 - `media` IPC target for scripts and hotkeys
@@ -87,7 +95,7 @@ Keyboard, while the popup is open:
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/vinicgobbi/omarchy-plugin-media.git --enable
+omarchy plugin add https://github.com/T3mon/omarchy-plugin-media.git --enable
 ```
 
 Disable any other media widget (`omarchy.media`, `bibek.media`) so only
