@@ -131,6 +131,26 @@ up wherever Omarchy renders plugin settings.
 
 Based on the built-in `omarchy.media` plugin by the Omarchy team.
 
+### Browser players (Brave web apps)
+
+Browsers expose only a basic MPRIS player, so a few things are worked around:
+
+- **Volume** sets the browser's PipeWire stream volume, since the browser
+  ignores MPRIS volume.
+- **Open player** focuses the Hyprland window whose title matches the track
+  (or whose class matches the player), since the browser can't raise itself.
+- **Shuffle & repeat for the Spotify web app.** The browser doesn't expose
+  these, so the buttons send Spotify's own shortcuts (`Alt+S` shuffle,
+  `Alt+R` repeat) to the Spotify window with Hyprland's `send_shortcut`. They
+  only show when an `open.spotify.com` window's title matches the playing
+  track; other browser players keep them hidden.
+
+  Spotify doesn't report the state back, so the buttons show a guess: both
+  start off and change with each click here (repeat cycles off → all → one).
+  The guess goes wrong if you use Spotify's own buttons, reload the page, or
+  change it from another device. Click the button until it matches Spotify
+  again.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, the plugin's

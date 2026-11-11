@@ -206,6 +206,10 @@ BarWidget {
 
   function cycleRepeat() {
     var p = activePlayer
+    if (p && !p.loopSupported && spotifyWebControls) {
+      if (sendSpotifyShortcut("R")) spotifyRepeatGuess = (spotifyRepeatGuess + 1) % 3
+      return
+    }
     if (!p || !p.loopSupported) return
     // off -> repeat playlist -> repeat track -> off
     p.loopState = p.loopState === MprisLoopState.None ? MprisLoopState.Playlist
@@ -214,6 +218,10 @@ BarWidget {
 
   function toggleShuffle() {
     var p = activePlayer
+    if (p && !p.shuffleSupported && spotifyWebControls) {
+      if (sendSpotifyShortcut("S")) spotifyShuffleGuess = !spotifyShuffleGuess
+      return
+    }
     if (p && p.shuffleSupported) p.shuffle = !p.shuffle
   }
 
@@ -249,6 +257,60 @@ BarWidget {
   ].join("\n")
 
   Process { id: focusProcess }
+
+  // Shuffle / repeat for the Spotify web app. Browsers don't expose shuffle
+  // or repeat over MPRIS, so for a Chromium-based player whose window is the
+  // Spotify web app (class contains "open.spotify.com"), the buttons send
+  // Spotify's own shortcuts (Alt+S / Alt+R) straight to that window instead.
+  // Spotify doesn't report the state back, so the buttons show a guess: they
+  // assume both start off and track our own clicks. Clicking Spotify's own
+  // buttons (or reloading it) makes the guess wrong until clicked back.
+  // Every other player without native support keeps them hidden.
+  property string spotifyWebWindow: ""
+  onSpotifyWebWindowChanged: { spotifyShuffleGuess = false; spotifyRepeatGuess = 0 }
+  property bool spotifyShuffleGuess: false
+  property int spotifyRepeatGuess: 0 // 0 off, 1 repeat all, 2 repeat one (Spotify's Alt+R cycle)
+  readonly property bool spotifyWebControls: spotifyWebWindow !== "" && !!activePlayer
+    && !activePlayer.shuffleSupported && !activePlayer.loopSupported
+
+  Process {
+    id: spotifyFinder
+    // $1 = track title. The window must be the Spotify web app AND show the
+    // track that's playing, so a YouTube tab playing while Spotify is open
+    // doesn't get Spotify's buttons.
+    readonly property string script: "hyprctl clients -j | jq -r --arg t \"$1\" "
+      + "'[.[] | select((.class | test(\"open\\\\.spotify\\\\.com\")) and $t != \"\" "
+      + "and (.title | ascii_downcase | contains($t | ascii_downcase)))] | .[0].address // empty'"
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var addr = text.trim()
+        root.spotifyWebWindow = /^0x[0-9a-f]+$/.test(addr) ? addr : ""
+      }
+    }
+  }
+
+  function refreshSpotifyWebWindow() {
+    var p = activePlayer
+    // Only Chromium-based players can be the web app.
+    if (!p || p.shuffleSupported || p.loopSupported || p.canRaise) { spotifyWebWindow = ""; return }
+    if (spotifyFinder.running) return
+    spotifyFinder.command = ["bash", "-c", spotifyFinder.script, "_", String(p.trackTitle || "")]
+    spotifyFinder.running = true
+  }
+
+  onActivePlayerChanged: refreshSpotifyWebWindow()
+  onTitleChanged: refreshSpotifyWebWindow()
+
+  function sendSpotifyShortcut(key) {
+    if (!spotifyWebControls || shortcutProcess.running) return false
+    shortcutProcess.command = ["hyprctl", "dispatch",
+      "hl.dsp.send_shortcut({ mods = \"ALT\", key = \"" + key + "\", window = \"address:" + spotifyWebWindow + "\" })"]
+    shortcutProcess.running = true
+    return true
+  }
+
+  Process { id: shortcutProcess }
 
   function openPlayer() {
     var p = activePlayer
@@ -321,7 +383,10 @@ BarWidget {
     running: root.shown && root.prefs.showTime && !root.isLive && root.activePlayer !== null && root.activePlayer.isPlaying
     onTriggered: root.activePlayer.positionChanged()
   }
-  onPopupOpenChanged: if (!popupOpen) settingsOpen = false
+  onPopupOpenChanged: {
+    if (!popupOpen) settingsOpen = false
+    else refreshSpotifyWebWindow()
+  }
 
   readonly property bool shown: hasMedia && (!prefs.hideWhenPaused || (activePlayer !== null && activePlayer.isPlaying))
 
@@ -790,8 +855,9 @@ BarWidget {
             foreground: root.bar.foreground
             horizontalPadding: Style.spacing.controlPaddingX
             verticalPadding: Style.spacing.controlPaddingY
-            visible: !!root.activePlayer && root.activePlayer.shuffleSupported
-            selected: visible && root.activePlayer.shuffle
+            visible: (!!root.activePlayer && root.activePlayer.shuffleSupported) || root.spotifyWebControls
+            selected: root.activePlayer && root.activePlayer.shuffleSupported ? root.activePlayer.shuffle
+              : (root.spotifyWebControls && root.spotifyShuffleGuess)
             tooltipText: "Shuffle"
             onClicked: root.toggleShuffle()
           }
@@ -828,12 +894,15 @@ BarWidget {
           }
 
           Button {
-            iconText: root.activePlayer && root.activePlayer.loopState === MprisLoopState.Track ? "󰑘" : "󰑖"
+            iconText: (root.activePlayer && root.activePlayer.loopSupported
+              ? root.activePlayer.loopState === MprisLoopState.Track
+              : (root.spotifyWebControls && root.spotifyRepeatGuess === 2)) ? "󰑘" : "󰑖"
             foreground: root.bar.foreground
             horizontalPadding: Style.spacing.controlPaddingX
             verticalPadding: Style.spacing.controlPaddingY
-            visible: !!root.activePlayer && root.activePlayer.loopSupported
-            selected: visible && root.activePlayer.loopState !== MprisLoopState.None
+            visible: (!!root.activePlayer && root.activePlayer.loopSupported) || root.spotifyWebControls
+            selected: root.activePlayer && root.activePlayer.loopSupported ? root.activePlayer.loopState !== MprisLoopState.None
+              : (root.spotifyWebControls && root.spotifyRepeatGuess !== 0)
             tooltipText: "Repeat"
             onClicked: root.cycleRepeat()
           }
