@@ -60,6 +60,14 @@ Buttons: shuffle, previous, play/pause, next, repeat, open player and
 playback speed (each only when the player supports it), plus a volume
 slider. The gear in the corner opens the advanced options.
 
+- **Mute:** click the speaker icon next to the volume slider. It mutes only
+  this player, not the whole system.
+- **Output:** when there's more than one output, buttons under the slider
+  (e.g. *Speaker*, *AirPods Pro*, *HDMI 1*) move only this player's sound
+  there, like pavucontrol does. Uses `pactl` (`libpulse`).
+- **Copy song:** click the song title to copy "Artist – Title" (or the
+  track's link, when the player gives one) to the clipboard. Uses `wl-copy`.
+
 Keyboard, while the popup is open:
 
 | Key                    | Effect                                  |

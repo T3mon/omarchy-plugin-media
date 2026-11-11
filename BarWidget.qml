@@ -186,6 +186,62 @@ BarWidget {
     else if (activePlayer && activePlayer.volumeSupported) activePlayer.volume = value
   }
 
+  // Mute. On the PipeWire stream when there is one (browsers ignore MPRIS
+  // mute too); otherwise fake it by dropping MPRIS volume to 0 and back.
+  property real volumeBeforeMute: -1
+  readonly property bool muted: usesStreamVolume ? playerStream.audio.muted
+    : (volumeBeforeMute >= 0 && currentVolume <= 0)
+  function toggleMute() {
+    if (usesStreamVolume) { playerStream.audio.muted = !playerStream.audio.muted; return }
+    if (!activePlayer || !activePlayer.volumeSupported) return
+    if (muted) { activePlayer.volume = volumeBeforeMute; volumeBeforeMute = -1 }
+    else { volumeBeforeMute = activePlayer.volume; activePlayer.volume = 0 }
+  }
+
+  // Output device. Moves only this player's stream to another sink, the way
+  // pavucontrol does (pactl's sink-input index is the stream's object.serial).
+  readonly property var outputSinks: {
+    var nodes = Pipewire.nodes ? Pipewire.nodes.values : []
+    return nodes.filter(function(n) { return n && n.isSink && !n.isStream && n.audio })
+  }
+  PwNodeLinkTracker { id: streamLinks; node: root.playerStream }
+  readonly property var currentSink: {
+    var groups = streamLinks.linkGroups || []
+    for (var i = 0; i < groups.length; i++)
+      if (groups[i] && groups[i].target && groups[i].target.isSink) return groups[i].target
+    return null
+  }
+  readonly property bool outputSwitchable: usesStreamVolume && outputSinks.length > 1
+  function sinkLabel(n) {
+    return String(n.nickname || n.description || n.name || "Output")
+  }
+  function moveToSink(sink) {
+    if (!usesStreamVolume || !sink || sink === currentSink || moveProcess.running) return
+    var serial = playerStream.properties ? playerStream.properties["object.serial"] : undefined
+    if (serial === undefined) return
+    moveProcess.command = ["pactl", "move-sink-input", String(serial), String(sink.name)]
+    moveProcess.running = true
+  }
+  Process { id: moveProcess }
+
+  // Copy "Artist – Title" (or the track's URL when the player gives one).
+  property bool justCopied: false
+  function copyTrack() {
+    var p = activePlayer
+    if (!p || copyProcess.running) return
+    var md = p.metadata || {}
+    var url = String(md["xesam:url"] || "")
+    var text = /^https?:/.test(url) ? url
+      : [p.trackArtist, p.trackTitle].filter(function(x) { return !!x }).join(" – ")
+    if (!text) return
+    copyProcess.command = ["wl-copy", "--", text]
+    copyProcess.running = true
+    justCopied = true
+    copiedTimer.restart()
+  }
+  Process { id: copyProcess }
+  Timer { id: copiedTimer; interval: 1500; onTriggered: root.justCopied = false }
+
   function adjustVolume(delta) {
     if (!volumeAvailable) return
     var base = pendingVolume >= 0 ? pendingVolume : currentVolume
@@ -299,7 +355,7 @@ BarWidget {
     spotifyFinder.running = true
   }
 
-  onActivePlayerChanged: refreshSpotifyWebWindow()
+  onActivePlayerChanged: { volumeBeforeMute = -1; refreshSpotifyWebWindow() }
   onTitleChanged: refreshSpotifyWebWindow()
 
   function sendSpotifyShortcut(key) {
@@ -668,13 +724,23 @@ BarWidget {
 
             Text {
               textFormat: Text.PlainText
-              text: root.title || "Nothing playing"
-              color: root.bar.foreground
+              text: root.justCopied ? "Copied" : (root.title || "Nothing playing")
+              color: titleHit.containsMouse && root.hasMedia ? Color.accent : root.bar.foreground
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.subtitle
               font.bold: true
               elide: Text.ElideRight
               width: parent.width
+
+              MouseArea {
+                id: titleHit
+                anchors.fill: parent
+                enabled: root.hasMedia
+                hoverEnabled: true
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.copyTrack()
+              }
             }
 
             Text {
@@ -967,10 +1033,19 @@ BarWidget {
             id: volumeIcon
             textFormat: Text.PlainText
             anchors.verticalCenter: parent.verticalCenter
-            text: volume.level <= 0 ? "󰝟" : (volume.level < 0.5 ? "󰖀" : "󰕾")
-            color: root.bar.foreground
+            text: root.muted || volume.level <= 0 ? "󰝟" : (volume.level < 0.5 ? "󰖀" : "󰕾")
+            color: muteHit.containsMouse ? Color.accent : root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.icon
+
+            MouseArea {
+              id: muteHit
+              anchors.fill: parent
+              anchors.margins: -Style.space(4)
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.toggleMute()
+            }
           }
 
           Item {
@@ -996,6 +1071,7 @@ BarWidget {
                 height: parent.height
                 radius: parent.radius
                 color: Color.accent
+                opacity: root.muted ? 0.35 : 1
               }
             }
 
@@ -1035,10 +1111,32 @@ BarWidget {
             anchors.verticalCenter: parent.verticalCenter
             width: Style.space(34)
             horizontalAlignment: Text.AlignRight
-            text: Math.round(volume.level * 100) + "%"
+            text: root.muted ? "Muted" : Math.round(volume.level * 100) + "%"
             color: Qt.darker(root.bar.foreground, 1.3)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.caption
+          }
+        }
+
+        Flow {
+          id: outputs
+          width: parent.width
+          spacing: Style.space(4)
+          visible: root.outputSwitchable
+
+          Repeater {
+            model: outputs.visible ? root.outputSinks : []
+
+            Button {
+              required property var modelData
+              text: root.sinkLabel(modelData)
+              foreground: root.bar.foreground
+              horizontalPadding: Style.spacing.controlPaddingX
+              verticalPadding: Style.spacing.controlPaddingY
+              selected: modelData === root.currentSink
+              tooltipText: String(modelData.description || modelData.name || "")
+              onClicked: root.moveToSink(modelData)
+            }
           }
         }
 
