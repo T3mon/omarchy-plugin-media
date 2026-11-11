@@ -266,7 +266,7 @@ function barLabel(info, prefs) {
   var pair = prefs.artistFirst ? [artist, title] : [title, artist]
   for (var i = 0; i < pair.length; i++) if (pair[i]) parts.push(pair[i])
   if (prefs.showAlbum && info.album) parts.push(info.album)
-  var text = parts.join("  " + prefs.separator + "  ")
+  var text = parts.join(prefs.separator)
   // Fitting the text means never shortening it.
   return !prefs.dynamicWidth && prefs.textMode === "ellipsis" ? ellipsize(text, prefs.maxChars) : text
 }
