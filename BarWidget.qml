@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
+import Quickshell.Io
 import qs.Ui
 import qs.Commons
 import "MediaModel.js" as MediaModel
@@ -230,10 +231,38 @@ BarWidget {
     mediaService.selectPlayer(mediaService.playerKey(next))
   }
 
+  // Players that can't raise themselves (Chromium-based browsers and web apps
+  // report CanRaise = false) get their window focused through Hyprland
+  // instead: first a window whose title contains the track title (a web app
+  // or the browser tab showing it), else any window of that app.
+  readonly property bool canOpenPlayer: !!activePlayer
+    && (activePlayer.canRaise || (title !== "" || playerName !== ""))
+
+  readonly property string _focusScript: [
+    "addr=$(hyprctl clients -j | jq -r --arg t \"$1\" --arg c \"$2\" '",
+    "  (map(select($t != \"\" and (.title | ascii_downcase | contains($t | ascii_downcase))))",
+    "   + map(select($c != \"\" and (.class | ascii_downcase | contains($c | ascii_downcase)))))",
+    "  | .[0].address // empty')",
+    "[ -n \"$addr\" ] || exit 1",
+    "hyprctl dispatch \"hl.dsp.focus({ window = \\\"address:$addr\\\" })\" >/dev/null 2>&1 \\",
+    "  || hyprctl dispatch focuswindow \"address:$addr\" >/dev/null 2>&1"
+  ].join("\n")
+
+  Process { id: focusProcess }
+
   function openPlayer() {
     var p = activePlayer
-    if (!p || !p.canRaise) return
-    p.raise()
+    if (!p) return
+    if (p.canRaise) {
+      p.raise()
+    } else {
+      if (focusProcess.running) return
+      // "Brave" -> "brave" matches window classes like brave-browser and
+      // brave-open.spotify.com__-Default.
+      var app = String(p.identity || p.desktopEntry || "").toLowerCase().split(" ")[0]
+      focusProcess.command = ["bash", "-c", root._focusScript, "_", String(p.trackTitle || ""), app]
+      focusProcess.running = true
+    }
     popupOpen = false
   }
 
@@ -814,7 +843,7 @@ BarWidget {
             foreground: root.bar.foreground
             horizontalPadding: Style.spacing.controlPaddingX
             verticalPadding: Style.spacing.controlPaddingY
-            visible: !!root.activePlayer && root.activePlayer.canRaise
+            visible: root.canOpenPlayer
             tooltipText: "Open player"
             onClicked: root.openPlayer()
           }
