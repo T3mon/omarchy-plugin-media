@@ -312,6 +312,19 @@ BarWidget {
 
   Process { id: shortcutProcess }
 
+  // Brings the Spotify window forward and toggles its queue panel
+  // (Alt+Shift+Q). It's a toggle, so it closes the queue if already open.
+  function openSpotifyQueue() {
+    if (!spotifyWebControls || shortcutProcess.running) return
+    var win = "address:" + spotifyWebWindow
+    shortcutProcess.command = ["bash", "-c",
+      "hyprctl dispatch \"$1\" >/dev/null && hyprctl dispatch \"$2\" >/dev/null", "_",
+      "hl.dsp.focus({ window = \"" + win + "\" })",
+      "hl.dsp.send_shortcut({ mods = \"ALT SHIFT\", key = \"Q\", window = \"" + win + "\" })"]
+    shortcutProcess.running = true
+    popupOpen = false
+  }
+
   function openPlayer() {
     var p = activePlayer
     if (!p) return
@@ -915,6 +928,16 @@ BarWidget {
             visible: root.canOpenPlayer
             tooltipText: "Open player"
             onClicked: root.openPlayer()
+          }
+
+          Button {
+            iconText: "󰲸"
+            foreground: root.bar.foreground
+            horizontalPadding: Style.spacing.controlPaddingX
+            verticalPadding: Style.spacing.controlPaddingY
+            visible: root.spotifyWebControls
+            tooltipText: "Queue"
+            onClicked: root.openSpotifyQueue()
           }
 
           Button {

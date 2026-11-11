@@ -150,6 +150,9 @@ Browsers expose only a basic MPRIS player, so a few things are worked around:
   The guess goes wrong if you use Spotify's own buttons, reload the page, or
   change it from another device. Click the button until it matches Spotify
   again.
+- **Queue for the Spotify web app.** A queue button brings the Spotify window
+  forward and sends `Alt+Shift+Q`. Spotify toggles the panel, so it closes
+  the queue if it's already open.
 
 ## Contributing
 
